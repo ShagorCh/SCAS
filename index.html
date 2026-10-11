@@ -110,8 +110,8 @@
 <nav class="mobilebar"><button class="active" data-page="home" onclick="showPage('home')"><span>⌂</span>Home</button><button data-page="home" onclick="showPage('home');document.getElementById('search').focus()"><span>▦</span>Apps</button><button data-page="about" onclick="showPage('about')"><span>ⓘ</span>About</button></nav>
 <script>
 const KEY='scAndroidStudioApps_v1', ABOUTKEY='scAndroidStudioAbout_v1';
-const GITHUB_RELEASES_API='https://api.github.com/repos/ShagorCh/ShagorCh.github.io/releases?per_page=100';
-const IPTVPLAY_FALLBACK='https://github.com/ShagorCh/ShagorCh.github.io/releases/download/v1.0.0/IPTV.Play.apk';
+const GITHUB_RELEASES_API='https://api.github.com/repos/ShagorCh/shagorch.github.io/releases?per_page=100';
+const IPTVPLAY_FALLBACK='https://github.com/ShagorCh/shagorch.github.io/releases/download/v1.0.0/IPTV.Play.apk';
 const defaults=[
 {id:'iptvplay',name:'IPTVPlay',desc:'Your World of Live TV',version:'v1.0.0',date:'2026-10-10',size:'248 KB',downloadCount:0,status:'free',iconText:'IPTV',about:'IPTVPlay একটি সহজ ও শক্তিশালী লাইভ টিভি প্লেয়ার। M3U প্লেলিস্ট চালানো, চ্যানেল ক্যাটাগরি অনুযায়ী দেখা এবং পরিষ্কার ইন্টারফেস ব্যবহার করার সুবিধা রয়েছে।',features:['M3U/M3U8 playlist support','লাইভ টিভি চ্যানেল ক্যাটাগরি','সহজ ও পরিষ্কার ইন্টারফেস','প্লেলিস্ট সেভ করার সুবিধা','Android ফোন ও TV box-এ ব্যবহারযোগ্য'],download:IPTVPLAY_FALLBACK,pin:'',icon:'',shots:[]},
 {id:'silent-camera',name:'Silent Camera',desc:'Background silent camera recording',version:'v1.0.0',date:'2026-10-09',size:'3.2 MB',downloadCount:0,status:'premium',iconText:'◉',about:'Silent Camera অ্যাপের বিস্তারিত তথ্য এখানে যোগ করা হবে।',features:['সহজ রেকর্ডিং কন্ট্রোল','রেকর্ডিং ফাইল ম্যানেজমেন্ট'],download:'',pin:'PIN পেতে WhatsApp-এ যোগাযোগ করুন',icon:'',shots:[]},
@@ -150,8 +150,9 @@ async function syncGitHubReleases(){
     const releases=await response.json();
     if(!Array.isArray(releases)) return;
     let changed=false;
+    const publicReleases=releases.filter(release=>!release.draft&&!release.prerelease);
     for(const app of apps){
-      const candidates=releases.filter(release=>!release.draft&&!release.prerelease&&releaseMatchesApp(app,release));
+      const candidates=publicReleases.filter(release=>releaseMatchesApp(app,release));
       if(!candidates.length) continue;
       candidates.sort((a,b)=>new Date(b.published_at||b.created_at||0)-new Date(a.published_at||a.created_at||0));
       const release=candidates[0];
@@ -230,6 +231,37 @@ async function syncGitHubReleases(){
       if(published) app.date=published.slice(0,10);
       changed=true;
     }
+    // Automatically add every public release that has a downloadable APK/ZIP/7z,
+    // even when the app was not listed in the original demo array.
+    const installableReleases=publicReleases.filter(release=>(release.assets||[]).some(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'')));
+    for(const release of installableReleases){
+      if(apps.some(app=>releaseMatchesApp(app,release))) continue;
+      const assets=release.assets||[];
+      const premiumAsset=assets.find(asset=>/\.(zip|7z)$/i.test(asset.name||''));
+      const apkAsset=assets.find(asset=>/\.apk$/i.test(asset.name||''));
+      const downloadAsset=apkAsset||premiumAsset;
+      if(!downloadAsset) continue;
+      const media=imageAssetsForRelease(release);
+      const clean=String(release.body||'').replace(/\r/g,'').replace(/<img\b[^>]*>/gi,' ').replace(/<br\s*\/?\s*>/gi,'\n').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/^#{1,6}\s+/gm,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/`([^`]+)`/g,'$1').trim();
+      const lines=clean.split(/\n/).map(line=>line.trim()).filter(Boolean);
+      const bulletIndex=lines.findIndex(line=>/^[-*•▪◦]\s+/.test(line));
+      const intro=(bulletIndex>=0?lines.slice(0,bulletIndex):lines).join(' ').replace(/^#+\s*/,'').replace(/[\s.。…·•-]+$/g,'').trim();
+      const features=(bulletIndex>=0?lines.slice(bulletIndex):[]).map(line=>line.replace(/^[-*•▪◦]+\s*/, '').replace(/[\s.。…·•]+$/g,'').trim()).filter(Boolean);
+      const baseName=String(release.name||release.tag_name||'New App').replace(/\s+v?\d+(?:[._-]\d+)*\s*$/i,'').trim()||String(release.tag_name||'New App');
+      const id=normalizeReleaseText(baseName)||('release-'+String(release.id||Date.now()));
+      if(apps.some(app=>app.id===id||normalizeReleaseText(app.name)===normalizeReleaseText(baseName))) continue;
+      const bytes=Number(downloadAsset.size||0), published=release.published_at||release.created_at;
+      apps.push({id,name:baseName,desc:(intro.split(/[.!?।\n]/).map(x=>x.trim()).find(Boolean)||baseName).slice(0,180),version:release.tag_name||'',date:published?published.slice(0,10):'',size:bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':bytes?Math.max(1,Math.round(bytes/1024))+' KB':'',downloadCount:assets.filter(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'')).reduce((sum,asset)=>sum+Number(asset.download_count||0),0),status:premiumAsset&&!apkAsset?'premium':'free',iconText:baseName.slice(0,3).toUpperCase(),about:intro||baseName,features,download:assetUrl(downloadAsset),pin:premiumAsset&&!apkAsset?'PIN পেতে WhatsApp-এ যোগাযোগ করুন':'',icon:media.logo||'',shots:media.shots||[],platform:'',license:''});
+      changed=true;
+    }
+    // Remove the four built-in sample cards when no corresponding real release exists.
+    const sampleIds=['iptvplay','silent-camera','bagerhat-vision','jb-mart'];
+    const releasedIds=new Set(installableReleases.map(release=>release.id));
+    const matchedSampleIds=new Set();
+    for(const id of sampleIds){const app=apps.find(item=>item.id===id);if(app&&installableReleases.some(release=>releaseMatchesApp(app,release)))matchedSampleIds.add(id)}
+    const beforePrune=apps.length;
+    apps=apps.filter(app=>!sampleIds.includes(app.id)||matchedSampleIds.has(app.id));
+    if(apps.length!==beforePrune) changed=true;
     if(changed){persist();renderApps();if(currentId)openDetails(currentId)}
   }catch(err){
     console.warn('Could not sync GitHub Releases; using saved/default links.',err);
