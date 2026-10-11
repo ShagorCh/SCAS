@@ -22,15 +22,25 @@
 <main class="wrap">
 <section id="home" class="page active">
   <div class="heading"><div><div class="eyebrow">Apps collection</div><h1>আমাদের অ্যাপস</h1><div class="muted" style="margin-top:7px;font-size:13px">আপনার পছন্দের অ্যাপটি বেছে নিন</div></div></div>
-  <div class="filters" role="group" aria-label="অ্যাপ ফিল্টার">
-    <button class="filter active" data-filter="all" onclick="setFilter('all',this)">সব অ্যাপ</button>
-    <button class="filter" data-filter="free" onclick="setFilter('free',this)">Free Apps</button>
-    <button class="filter" data-filter="premium" onclick="setFilter('premium',this)">Premium Apps</button>
+  <div class="filters" role="group" aria-label="অ্যাপ পেজ">
+    <button class="filter active" onclick="showPage('home')">সব অ্যাপ</button>
+    <button class="filter" onclick="showPage('free')">Free Apps ↗</button>
+    <button class="filter" onclick="showPage('premium')">Premium Apps ↗</button>
   </div>
   <div id="appList" class="app-list"></div>
 </section>
+<section id="free" class="page">
+  <button class="back" onclick="showPage('home')">← সব অ্যাপে ফিরে যান</button>
+  <div class="heading"><div><div class="eyebrow">Free collection</div><h1>Free Apps</h1><div class="muted" style="margin-top:7px;font-size:13px">সব ফ্রি অ্যাপ এক জায়গায়</div></div></div>
+  <div id="freeAppList" class="app-list"></div>
+</section>
+<section id="premium" class="page">
+  <button class="back" onclick="showPage('home')">← সব অ্যাপে ফিরে যান</button>
+  <div class="heading"><div><div class="eyebrow">Premium collection</div><h1>Premium Apps</h1><div class="muted" style="margin-top:7px;font-size:13px">প্রিমিয়াম অ্যাপ ও ডাউনলোড</div></div></div>
+  <div id="premiumAppList" class="app-list"></div>
+</section>
 <section id="details" class="page">
-  <button class="back" onclick="showPage('home')">← অ্যাপ লিস্টে ফিরে যান</button>
+  <button class="back" onclick="goBackFromDetails()">← আগের পেজে ফিরে যান</button>
   <div id="detailContent"></div>
 </section>
 <section id="about" class="page">
@@ -45,7 +55,8 @@
     <div class="contact"><small>Founder</small><strong>Shagor Chakladar</strong></div>
     <div class="contact"><small>Contact Number</small><strong><a href="tel:01303072964">01303-072964</a></strong></div>
     <div class="contact"><small>Email Address</small><strong><a href="mailto:shagorchakladar@gmail.com">shagorchakladar@gmail.com</a></strong></div>
-  </div><div class="actions"><a class="primary" href="mailto:shagorchakladar@gmail.com">✉ Email</a><a class="whatsapp" href="https://wa.me/8801303072964" target="_blank" rel="noopener">◉ WhatsApp</a></div></div>
+    <div class="contact"><small>Facebook</small><strong><a href="https://www.facebook.com/shagorch24" target="_blank" rel="noopener">fb.com/shagorch24 ↗</a></strong></div>
+  </div><div class="actions"><a class="primary" href="mailto:shagorchakladar@gmail.com">✉ Email</a><a class="whatsapp" href="https://wa.me/8801303072964" target="_blank" rel="noopener">◉ WhatsApp</a><a class="secondary" href="https://www.facebook.com/shagorch24" target="_blank" rel="noopener">f Facebook</a></div></div>
   <div class="section" id="aboutShotsSection" style="display:none"><h2>About Screenshots</h2><div id="aboutShots" class="screenshots" style="margin-top:14px"></div></div>
 </section>
 <section id="admin" class="page">
@@ -99,8 +110,8 @@
 <nav class="mobilebar"><button class="active" data-page="home" onclick="showPage('home')"><span>⌂</span>Home</button><button data-page="home" onclick="showPage('home');document.getElementById('search').focus()"><span>▦</span>Apps</button><button data-page="about" onclick="showPage('about')"><span>ⓘ</span>About</button></nav>
 <script>
 const KEY='scAndroidStudioApps_v1', ABOUTKEY='scAndroidStudioAbout_v1';
-const GITHUB_RELEASES_API='https://api.github.com/repos/jakareachakladar-ui/SC-Android-Studio/releases?per_page=100';
-const IPTVPLAY_FALLBACK='https://github.com/jakareachakladar-ui/SC-Android-Studio/releases/download/v1.0.0/IPTV.Play.apk';
+const GITHUB_RELEASES_API='https://api.github.com/repos/ShagorCh/ShagorCh.github.io/releases?per_page=100';
+const IPTVPLAY_FALLBACK='https://github.com/ShagorCh/ShagorCh.github.io/releases/download/v1.0.0/IPTV.Play.apk';
 const defaults=[
 {id:'iptvplay',name:'IPTVPlay',desc:'Your World of Live TV',version:'v1.0.0',date:'2026-10-10',size:'248 KB',status:'free',iconText:'IPTV',about:'IPTVPlay একটি সহজ ও শক্তিশালী লাইভ টিভি প্লেয়ার। M3U প্লেলিস্ট চালানো, চ্যানেল ক্যাটাগরি অনুযায়ী দেখা এবং পরিষ্কার ইন্টারফেস ব্যবহার করার সুবিধা রয়েছে।',features:['M3U/M3U8 playlist support','লাইভ টিভি চ্যানেল ক্যাটাগরি','সহজ ও পরিষ্কার ইন্টারফেস','প্লেলিস্ট সেভ করার সুবিধা','Android ফোন ও TV box-এ ব্যবহারযোগ্য'],download:IPTVPLAY_FALLBACK,pin:'',icon:'',shots:[]},
 {id:'silent-camera',name:'Silent Camera',desc:'Background silent camera recording',version:'v1.0.0',date:'2026-10-09',size:'3.2 MB',status:'premium',iconText:'◉',about:'Silent Camera অ্যাপের বিস্তারিত তথ্য এখানে যোগ করা হবে।',features:['সহজ রেকর্ডিং কন্ট্রোল','রেকর্ডিং ফাইল ম্যানেজমেন্ট'],download:'',pin:'PIN পেতে WhatsApp-এ যোগাযোগ করুন',icon:'',shots:[]},
@@ -196,11 +207,14 @@ function loadApps(){try{const a=JSON.parse(localStorage.getItem(KEY));return Arr
 function persist(){localStorage.setItem(KEY,JSON.stringify(apps))}
 function safe(s=''){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function appIcon(a){return a.icon?`<img src="${safe(a.icon)}" alt="${safe(a.name)} icon" onerror="this.style.display='none';this.parentElement.insertAdjacentHTML('beforeend','<span>${safe(a.iconText||'APP')}</span>')">`:`<span>${safe(a.iconText||a.name.slice(0,3).toUpperCase())}</span>`}
-function setFilter(f,btn){filter=f;document.querySelectorAll('.filter').forEach(x=>x.classList.toggle('active',x===btn));renderApps()}
-function renderApps(){const q=(document.getElementById('search')?.value||'').toLowerCase();const list=apps.filter(a=>(filter==='all'||a.status===filter)&&(`${a.name} ${a.desc}`.toLowerCase().includes(q)));const el=document.getElementById('appList');if(!list.length){el.innerHTML='<div class="empty">কোনো অ্যাপ পাওয়া যায়নি।</div>';return}el.innerHTML=list.map(a=>`<article class="app-card" tabindex="0" role="button" onclick="openDetails('${safe(a.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetails('${safe(a.id)}')}"><div class="appicon">${appIcon(a)}</div><div class="appinfo"><div class="appname">${safe(a.name)}</div><div class="appdesc">${safe(a.desc||'')}</div><div class="meta"><span>◷ ${safe(a.version||'')}</span><span>▣ ${safe(a.date||'তারিখ নেই')}</span><span>⇩ ${safe(a.size||'সাইজ নেই')}</span></div></div><span class="badge ${a.status==='premium'?'premium':'free'}">${a.status==='premium'?'PREMIUM':'FREE'}</span><span class="chevron">›</span></article>`).join('')}
-function showPage(id,fromPop=false){if(!document.getElementById(id))id='home';if(!fromPop){const current=history.state&&history.state.scPage;if(current!==id){history.pushState({scPage:id},'',location.pathname+location.search+'#'+id)}}document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.mobilebar button').forEach(b=>b.classList.toggle('active',b.dataset.page===id||((id==='details')&&b.dataset.page==='home')));window.scrollTo({top:0,behavior:'auto'});if(id==='admin'){renderAdminList();refreshMediaSelect()}}
-window.addEventListener('popstate',function(event){const id=event.state&&event.state.scPage?event.state.scPage:'home';showPage(id,true)});
-if(!history.state||!history.state.scPage)history.replaceState({scPage:'home'},'',location.pathname+location.search+location.hash);
+function setFilter(f,btn){filter=f;renderApps()}
+function appCards(list){if(!list.length)return '<div class="empty">কোনো অ্যাপ পাওয়া যায়নি।</div>';return list.map(a=>`<article class="app-card" tabindex="0" role="button" onclick="openDetails('${safe(a.id)}')" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();openDetails('${safe(a.id)}')}"><div class="appicon">${appIcon(a)}</div><div class="appinfo"><div class="appname">${safe(a.name)}</div><div class="appdesc">${safe(a.desc||'')}</div><div class="meta"><span>◷ ${safe(a.version||'')}</span><span>▣ ${safe(a.date||'তারিখ নেই')}</span><span>⇩ ${safe(a.size||'সাইজ নেই')}</span></div></div><span class="badge ${a.status==='premium'?'premium':'free'}">${a.status==='premium'?'PREMIUM':'FREE'}</span><span class="chevron">›</span></article>`).join('')}
+function renderApps(){const q=(document.getElementById('search')?.value||'').toLowerCase();const matches=apps.filter(a=>`${a.name} ${a.desc}`.toLowerCase().includes(q));document.getElementById('appList').innerHTML=appCards(matches);document.getElementById('freeAppList').innerHTML=appCards(matches.filter(a=>a.status==='free'));document.getElementById('premiumAppList').innerHTML=appCards(matches.filter(a=>a.status==='premium'))}
+let previousPage='home';
+function showPage(id,fromPop=false){if(!document.getElementById(id))id='home';const current=history.state&&history.state.scPage||'home';if(id==='details'&&current!=='details')previousPage=current;if(!fromPop){if(current!==id)history.pushState({scPage:id},'',location.pathname+location.search+'#'+id)}document.querySelectorAll('.page').forEach(p=>p.classList.toggle('active',p.id===id));document.querySelectorAll('.mobilebar button').forEach(b=>b.classList.toggle('active',b.dataset.page===id||((id==='details')&&b.dataset.page==='home')));window.scrollTo({top:0,behavior:'auto'});if(id==='admin'){renderAdminList();refreshMediaSelect()}}
+function goBackFromDetails(){showPage(previousPage||'home')}
+window.addEventListener('popstate',function(event){let id=event.state&&event.state.scPage;if(!id){const hash=location.hash.slice(1);id=['home','about','free','premium','details','admin'].includes(hash)?hash:'home'}showPage(id,true)});
+const initialHash=location.hash.slice(1);if(!history.state||!history.state.scPage)history.replaceState({scPage:['home','about','free','premium','details','admin'].includes(initialHash)?initialHash:'home'},'',location.pathname+location.search+location.hash);
 function toast(message){const el=document.getElementById('toast');el.textContent=message;el.classList.add('show');clearTimeout(window.__scToastTimer);window.__scToastTimer=setTimeout(()=>el.classList.remove('show'),2600)}
 function openDetails(id){const a=apps.find(x=>x.id===id);if(!a)return;currentId=id;const buttonLabel=a.status==='premium'?'⇩ Download ZIP / 7z':'⇩ Download APK';const download=`<button class="primary" onclick="downloadApp('${safe(a.id)}')">${buttonLabel}</button>`;const pin=a.status==='premium'?`<a class="whatsapp" href="https://wa.me/8801303072964?text=${encodeURIComponent('আসসালামু আলাইকুম, '+a.name+' অ্যাপের Premium PIN চাই।') }" target="_blank" rel="noopener">◉ Get PIN on WhatsApp</a>`:'';const features=(a.features||[]).filter(Boolean);const shots=(a.shots||[]).filter(Boolean);const screenshots=shots.length?`<div class="section"><h2>▧ App Screenshots (${shots.length})</h2><div class="screenshots">${shots.map((s,i)=>`<div class="shot"><img src="${safe(s)}" alt="${safe(a.name)} screenshot ${i+1}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`).join('')}</div></div>`:'';document.getElementById('detailContent').innerHTML=`<div class="detailtop"><div class="appicon">${appIcon(a)}</div><div style="min-width:0;flex:1"><div class="detailtitle">${safe(a.name)}</div><div class="muted">${safe(a.desc||'')}</div><div class="meta"><span>${safe(a.version||'')}</span><span>${safe(a.date||'')}</span><span>${safe(a.size||'')}</span></div></div><span class="badge ${a.status==='premium'?'premium':'free'}">${a.status==='premium'?'PREMIUM':'FREE'}</span></div><div class="actions">${download}<button class="secondary" onclick="copyDownload('${safe(a.id)}')">⧉ Copy Download Link</button>${pin}</div><div class="facts"><div class="fact"><small>App Version</small><strong>${safe(a.version||'—')}</strong></div><div class="fact"><small>Updated</small><strong>${safe(a.date||'—')}</strong></div><div class="fact"><small>File Size</small><strong>${safe(a.size||'—')}</strong></div><div class="fact"><small>License</small><strong>${a.status==='premium'?'Premium':'Free'}</strong></div></div>${screenshots}<div class="section"><h2>About This App</h2><p>${safe(a.about||a.desc||'')}</p>${features.length?`<h2 style="margin-top:20px">⚙ Key Features</h2><ul style="padding-left:20px;color:#bad0e0;line-height:1.9">${features.map(f=>`<li>${safe(f)}</li>`).join('')}</ul>`:''}</div>${a.status==='premium'?'<div class="notice">Premium অ্যাপ ব্যবহারের জন্য ZIP/7z ফাইলের PIN প্রয়োজন হতে পারে। PIN পেতে WhatsApp-এ যোগাযোগ করুন।</div>':''}`;showPage('details')}
 function downloadApp(id){const a=apps.find(x=>x.id===id);if(!a)return;if(!a.download){toast('এই অ্যাপের ডাউনলোড লিংক শিগগিরই যুক্ত করা হবে।');return}window.open(a.download,'_blank','noopener')}
@@ -221,7 +235,7 @@ function importData(e){const f=e.target.files?.[0];if(!f)return;const r=new File
 document.getElementById('mediaApp').addEventListener('change',loadMedia);
 renderApps();renderAbout();
 syncGitHubReleases();
-if(location.hash.startsWith('#app=')){const id=decodeURIComponent(location.hash.slice(5));if(apps.some(a=>a.id===id))openDetails(id)}
+if(location.hash.startsWith('#app=')){const id=decodeURIComponent(location.hash.slice(5));if(apps.some(a=>a.id===id))openDetails(id)}else if(['home','about','free','premium','details','admin'].includes(location.hash.slice(1))){showPage(location.hash.slice(1),true)}
 </script>
 </body>
 </html>
