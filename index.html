@@ -185,14 +185,19 @@ async function syncGitHubReleases(){
         if(cleanDescription){
           // Split the Release body into a clean introduction and ordered feature bullets.
           // GitHub's Markdown body may arrive with headings/bullets on the same line.
-          const headingPattern=/(?:⚙\s*)?(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)\s*[:：.।…-]*/i;
+          const headingPattern=/(?:⚙[️]?\s*)?(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)\s*[:：.।…-]*/i;
           const featureMatch=headingPattern.exec(cleanDescription);
-          let introText=featureMatch ? cleanDescription.slice(0,featureMatch.index).trim() : cleanDescription;
+          // If the release notes contain bullets but no heading, treat the bullets as the Features list.
+          const firstBullet=cleanDescription.search(/^\s*[-*•▪◦]\s+/m);
+          const splitAt=featureMatch ? featureMatch.index : (firstBullet>=0 ? firstBullet : -1);
+          let introText=splitAt>=0 ? cleanDescription.slice(0,splitAt).trim() : cleanDescription;
           introText=introText.replace(/[\s.。…·•-]+$/g,'').trim();
-          // Show only text actually supplied before the Features heading; do not append generated copy.
+          // About contains only the original introductory description, never a second copy of the feature list.
           if(introText) app.about=introText;
-          if(featureMatch){
-            let featureText=cleanDescription.slice(featureMatch.index+featureMatch[0].length);
+          if(splitAt>=0){
+            let featureText=featureMatch
+              ? cleanDescription.slice(featureMatch.index+featureMatch[0].length)
+              : cleanDescription.slice(firstBullet);
             const sectionPattern=/(?:^|\n)\s*(platform|license|প্ল্যাটফর্ম|লাইসেন্স)\s*:?\s*/ig;
             const sectionMatches=[...featureText.matchAll(sectionPattern)];
             if(sectionMatches.length){
@@ -208,11 +213,11 @@ async function syncGitHubReleases(){
                 if(/license|লাইসেন্স/i.test(label)) app.license=value;
               }
             }
-            // Preserve the Release feature order and split inline Markdown bullets into separate items.
+            // Preserve original order and remove only Markdown bullet/number markers.
             featureText=featureText.replace(/\s+[-*•▪◦]\s+/g,'\n').replace(/\s+\d+[.)]\s+/g,'\n');
             const parsed=featureText.split(/\n+/)
               .map(line=>line.replace(/^\s*[-*•▪◦]+\s*/, '').replace(/^\s*\d+[.)]\s*/, '').replace(/[\s.。…·•]+$/g,'').trim())
-              .filter(line=>line && !/^(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)$/i.test(line));
+              .filter(line=>line && !/^(?:⚙[️]?\s*)?(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)$/i.test(line));
             if(parsed.length) app.features=parsed;
           }
           const shortDesc=introText.split('\n').map(x=>x.trim()).find(x=>x && !/^[-*•#]/.test(x));
