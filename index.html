@@ -137,11 +137,12 @@
 <nav class="mobilebar"><button class="active" data-page="home" onclick="showPage('home')"><span>⌂</span>Home</button><button data-page="home" onclick="showPage('home');document.getElementById('search').focus()"><span>▦</span>Apps</button><button data-page="about" onclick="showPage('about')"><span>ⓘ</span>About</button></nav>
 <script>
 const KEY='scAndroidStudioApps_v1', ABOUTKEY='scAndroidStudioAbout_v1';
-const GITHUB_RELEASES_API='https://api.github.com/repos/scandroidstudio/scandroidstudio.github.io/releases?per_page=100';
-// Paste the deployed Google Apps Script Web App URL here after setup. Leave blank to use GitHub Releases directly.
+// GitHub Releases API intentionally disabled: website uses Google Sheets + Drive only.
+const GITHUB_RELEASES_API='';
+// Google Sheets + Apps Script API. App files/images are hosted on Google Drive.
 const GOOGLE_DATA_API='https://script.google.com/macros/s/AKfycbxOjiGGOgKHm2Yo-YAvHS0onEVCpM8CraaYGhYwGpvvw3SLtbRCFfb8TISvxa6pWJxl/exec';
 const USE_GOOGLE_DATA_API= /^https:\/\/script\.google\.com\/macros\/s\//.test(GOOGLE_DATA_API);
-const IPTVPLAY_FALLBACK='https://github.com/scandroidstudio/scandroidstudio.github.io/releases/download/v1.0.0/IPTV.Play.apk';
+const IPTVPLAY_FALLBACK='';
 const defaults=[
 {id:'iptvplay',name:'IPTVPlay',desc:'Your World of Live TV',version:'v1.0.0',date:'2026-10-10',size:'248 KB',downloadCount:0,status:'free',iconText:'IPTV',about:'IPTVPlay একটি সহজ ও শক্তিশালী লাইভ টিভি প্লেয়ার। M3U প্লেলিস্ট চালানো, চ্যানেল ক্যাটাগরি অনুযায়ী দেখা এবং পরিষ্কার ইন্টারফেস ব্যবহার করার সুবিধা রয়েছে।',features:['M3U/M3U8 playlist support','লাইভ টিভি চ্যানেল ক্যাটাগরি','সহজ ও পরিষ্কার ইন্টারফেস','প্লেলিস্ট সেভ করার সুবিধা','Android ফোন ও TV box-এ ব্যবহারযোগ্য'],download:IPTVPLAY_FALLBACK,pin:'',icon:'',shots:[]},
 {id:'silent-camera',name:'Silent Camera',desc:'Background silent camera recording',version:'v1.0.0',date:'2026-10-09',size:'3.2 MB',downloadCount:0,status:'premium',iconText:'◉',about:'Silent Camera অ্যাপের বিস্তারিত তথ্য এখানে যোগ করা হবে।',features:['সহজ রেকর্ডিং কন্ট্রোল','রেকর্ডিং ফাইল ম্যানেজমেন্ট'],download:'',pin:'PIN পেতে WhatsApp-এ যোগাযোগ করুন',icon:'',shots:[]},
@@ -179,7 +180,7 @@ let githubNextAllowedAt=0;
 let githubRateLimitNoticeShown=false;
 async function syncGoogleSheetData(){
   if(!USE_GOOGLE_DATA_API) return false;
-  if(githubSyncInFlight) return true;
+  if(githubSyncInFlight) return false;
   githubSyncInFlight=true;
   try{
     const url=GOOGLE_DATA_API+(GOOGLE_DATA_API.includes('?')?'&':'?')+'t='+Date.now();
@@ -189,190 +190,91 @@ async function syncGoogleSheetData(){
     const incoming=Array.isArray(payload)?payload:(Array.isArray(payload.apps)?payload.apps:null);
     if(!incoming) throw new Error('Google endpoint did not return an apps array');
     const cleaned=incoming.filter(a=>a&&a.id&&a.name).map(a=>{
-      const rawDescription=String(a.description||a.desc||'').replace(/<[^>]*>/g,' ').trim();
-      const sizeBytes=Number(a.size||0);
-      const sizeLabel=typeof a.size==='string' && /\b(KB|MB|GB)\b/i.test(a.size) ? a.size :
-        (sizeBytes>=1048576?(sizeBytes/1048576).toFixed(1)+' MB':sizeBytes>0?Math.max(1,Math.round(sizeBytes/1024))+' KB':'');
-      const features=Array.isArray(a.features)?a.features:String(a.features||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
-      const shots=Array.isArray(a.shots)?a.shots:String(a.shots||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
-      const aboutRaw=String(a.about||'');
-      return {...a,
-        desc:String(a.desc||rawDescription.split(/\n/).map(x=>x.trim()).find(Boolean)||a.name).slice(0,180),
-        about:(!aboutRaw||/^https?:\/\//i.test(aboutRaw))?rawDescription:aboutRaw,
-        size:sizeLabel,
-        download:a.download||a.downloadUrl||'',
-        icon:a.icon||a.iconUrl||'',
-        status:String(a.status||'free').toLowerCase().includes('premium')?'premium':'free',
-        features,shots,downloadCount:Number(a.downloadCount||a.download_count||0)
+      const rawDescription=String(a.description||a.desc||'').replace(/\r/g,'').trim();
+      const plain=rawDescription
+        .replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div|h[1-6]|li)>/gi,'\n')
+        .replace(/<[^>]*>/g,' ').replace(/^#{1,6}\s*/gm,'')
+        .replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1')
+        .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&')
+        .replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
+      const lines=plain.split(/\n+/).map(x=>x.trim()).filter(Boolean);
+      const featureHeading=lines.findIndex(x=>/^(?:key\s*)?features?|মূল বৈশিষ্ট্য|ফিচার\s*:?$/i.test(x.replace(/[:：]$/,'')));
+      let intro=plain;
+      let features=Array.isArray(a.features)?a.features:[];
+      if(!features.length){
+        const bulletLines=lines.filter(x=>/^[-*•▪◦]\s+/.test(x)).map(x=>x.replace(/^[-*•▪◦]\s+/,'').trim()).filter(Boolean);
+        if(bulletLines.length) features=bulletLines;
+      }
+      if(featureHeading>=0) intro=lines.slice(0,featureHeading).join(' ').trim();
+      else if(lines.some(x=>/^[-*•▪◦]\s+/.test(x))) intro=lines.slice(0,lines.findIndex(x=>/^[-*•▪◦]\s+/.test(x))).join(' ').trim();
+      const urlAbout=String(a.about||'').trim();
+      const rawFeatures=Array.isArray(a.features)?a.features:String(a.features||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
+      const bytes=Number(a.size||0);
+      const size=typeof a.size==='string' && /[a-z]/i.test(a.size) ? a.size : (bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':bytes>0?Math.max(1,Math.round(bytes/1024))+' KB':'');
+      return {
+        ...a,
+        id:String(a.id).trim(),
+        name:String(a.name).trim(),
+        desc:String(a.desc||intro.split('\n')[0]||a.name).replace(/^[-*#\s]+/,'').trim().slice(0,180),
+        about:(!urlAbout||/^https?:\/\//i.test(urlAbout))?(intro||String(a.name)):urlAbout,
+        features:rawFeatures.length?rawFeatures:features,
+        shots:Array.isArray(a.shots)?a.shots:String(a.shots||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean),
+        status:String(a.status||'free').toLowerCase()==='premium'?'premium':'free',
+        version:String(a.version||''),
+        date:String(a.date||''),
+        size,
+        download:String(a.download||a.downloadUrl||''),
+        icon:String(a.icon||a.iconUrl||''),
+        iconText:String(a.iconText||a.name.slice(0,3).toUpperCase()),
+        pin:String(a.pin||''),
+        downloadCount:Number(a.downloadCount||a.download_count||0)
       };
     });
     if(!cleaned.length) throw new Error('Google Sheet contains no valid app rows');
     apps=cleaned;
-    persist();renderApps();
-    if(currentId&&apps.some(a=>a.id===currentId))openDetails(currentId,true);
-    const notice=document.getElementById('toast');
+    persist();
+    renderApps();
+    if(currentId&&apps.some(a=>a.id===currentId)) openDetails(currentId,true);
     if(payload.updatedAt) console.info('Google Sheet data updated:',payload.updatedAt);
     return true;
-  }catch(err){console.warn('Google Sheets sync failed; using saved/default data.',err);return true}
-  finally{githubSyncInFlight=false;githubLastSyncAt=Date.now();githubNextAllowedAt=Date.now()+15*60*1000}
-}
-async function syncGitHubReleases(force=false){
-  if(USE_GOOGLE_DATA_API){await syncGoogleSheetData();}
-  const now=Date.now();
-  if(githubSyncInFlight) return;
-  if(!force && now<githubNextAllowedAt) return;
-  // Avoid repeatedly consuming the shared unauthenticated GitHub API quota.
-  if(!force && now-githubLastSyncAt<15*60*1000) return;
-  githubSyncInFlight=true;
-  githubLastSyncAt=now;
-  try{
-    const response=await fetch(GITHUB_RELEASES_API,{cache:'default',headers:{'Accept':'application/vnd.github+json'}});
-    if(response.status===403 || response.status===429){
-      const reset=Number(response.headers.get('X-RateLimit-Reset')||0)*1000;
-      const retryAfter=Number(response.headers.get('Retry-After')||0)*1000;
-      githubNextAllowedAt=Math.max(Date.now()+15*60*1000,reset,retryAfter);
-      throw new Error('GitHub API rate limit reached; retry later');
-    }
-    if(!response.ok) throw new Error('GitHub Releases API unavailable: '+response.status);
-    githubNextAllowedAt=Date.now()+15*60*1000;
-    githubRateLimitNoticeShown=false;
-    const releases=await response.json();
-    if(!Array.isArray(releases)) return;
-    let changed=false;
-    const publicReleases=releases.filter(release=>!release.draft&&!release.prerelease);
-    for(const app of apps){
-      const candidates=publicReleases.filter(release=>releaseMatchesApp(app,release));
-      if(!candidates.length) continue;
-      const latestReleaseTime=release=>Math.max(new Date(release.published_at||release.created_at||0).getTime()||0,...(release.assets||[]).filter(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'')).map(asset=>new Date(asset.updated_at||asset.created_at||release.published_at||release.created_at||0).getTime()||0));
-      candidates.sort((a,b)=>latestReleaseTime(b)-latestReleaseTime(a));
-      const release=candidates[0];
-      const assets=release.assets||[];
-      const typeMatch=String(release.body||'').replace(/\*\*/g,'').replace(/__(.*?)__/g,'$1').match(/^\s*(?:[-*•▪◦]\s*)?Type\s*:\s*(Premium|Free)\s*$/im);
-      const declaredType=typeMatch?typeMatch[1].toLowerCase():'';
-      const releaseHasPremiumArchive=assets.some(asset=>/\.(zip|7z)$/i.test(asset.name||''));
-      const releaseStatus=declaredType || (releaseHasPremiumArchive && !assets.some(asset=>/\.apk$/i.test(asset.name||''))?'premium':'free');
-      const downloadAsset=assets.find(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'') &&
-        (releaseStatus==='premium'?/\.(zip|7z)$/i.test(asset.name||''):/\.apk$/i.test(asset.name||'')))
-        || assets.find(asset=>/\.(apk|zip|7z)$/i.test(asset.name||''));
-      app.status=releaseStatus;
-      if(downloadAsset) app.download=assetUrl(downloadAsset);
-      const countedAssets=assets.filter(asset=>/\.(apk|zip|7z)$/i.test(asset.name||''));
-      app.downloadCount=countedAssets.reduce((sum,asset)=>sum+Number(asset.download_count||0),0);
-      if(release.tag_name) app.version=release.tag_name;
-      const media=imageAssetsForRelease(release);
-      if(media.logo) app.icon=media.logo;
-      if(media.shots.length) app.shots=media.shots;
-      const releaseDescription=String(release.body||'').replace(/\r/g,'').trim();
-      app.platform=''; app.license='';
-      if(releaseDescription){
-        // Strip embedded HTML markup from GitHub release notes before displaying it to customers.
-        const cleanDescription=releaseDescription
-          .replace(/^\s*(?:[-*•▪◦]\s*)?(?:\*\*|__)?Type(?:\*\*|__)?\s*:\s*(?:\*\*|__)?(?:Premium|Free)(?:\*\*|__)?\s*$/gim,'')
-          .replace(/<img\b[^>]*>/gi,' ')
-          .replace(/<br\s*\/?>/gi,'\n')
-          .replace(/<\/(p|div|h[1-6]|li|blockquote)>/gi,'\n')
-          .replace(/<[^>]*>/g,' ')
-          .replace(/&nbsp;/gi,' ')
-          .replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>')
-          .replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'")
-          .replace(/^#{1,6}\s+/gm,'').replace(/\*\*(.*?)\*\*/g,'$1')
-          .replace(/__(.*?)__/g,'$1').replace(/`([^`]+)`/g,'$1')
-          .replace(/\[([^\]]+)\]\((https?:\/\/[^)]+)\)/g,'$1 — $2')
-          .replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
-        if(cleanDescription){
-          // Split the Release body into a clean introduction and ordered feature bullets.
-          // GitHub's Markdown body may arrive with headings/bullets on the same line.
-          const headingPattern=/(?:⚙[️]?\s*)?(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)\s*[:：.।…-]*/i;
-          const featureMatch=headingPattern.exec(cleanDescription);
-          // If the release notes contain bullets but no heading, treat the bullets as the Features list.
-          const firstBullet=cleanDescription.search(/^\s*[-*•▪◦]\s+/m);
-          const splitAt=featureMatch ? featureMatch.index : (firstBullet>=0 ? firstBullet : -1);
-          let introText=splitAt>=0 ? cleanDescription.slice(0,splitAt).trim() : cleanDescription;
-          introText=introText.replace(/[\s.。…·•-]+$/g,'').trim();
-          // About contains only the original introductory description, never a second copy of the feature list.
-          if(introText) app.about=introText;
-          if(splitAt>=0){
-            let featureText=featureMatch
-              ? cleanDescription.slice(featureMatch.index+featureMatch[0].length)
-              : cleanDescription.slice(firstBullet);
-            const sectionPattern=/(?:^|\n)\s*(platform|license|প্ল্যাটফর্ম|লাইসেন্স)\s*:?\s*/ig;
-            const sectionMatches=[...featureText.matchAll(sectionPattern)];
-            if(sectionMatches.length){
-              const allSectionsText=featureText;
-              featureText=allSectionsText.slice(0,sectionMatches[0].index);
-              for(let si=0;si<sectionMatches.length;si++){
-                const sm=sectionMatches[si];
-                const valueStart=sm.index+sm[0].length;
-                const valueEnd=si+1<sectionMatches.length?sectionMatches[si+1].index:allSectionsText.length;
-                const value=allSectionsText.slice(valueStart,valueEnd).trim().replace(/[\s.。…]+$/g,'');
-                const label=sm[1].toLowerCase();
-                if(/platform|প্ল্যাটফর্ম/i.test(label)) app.platform=value;
-                if(/license|লাইসেন্স/i.test(label)) app.license=value;
-              }
-            }
-            // Preserve original order and remove only Markdown bullet/number markers.
-            featureText=featureText.replace(/\s+[-*•▪◦]\s+/g,'\n').replace(/\s+\d+[.)]\s+/g,'\n');
-            const parsed=featureText.split(/\n+/)
-              .map(line=>line.replace(/^\s*[-*•▪◦]+\s*/, '').replace(/^\s*\d+[.)]\s*/, '').replace(/[\s.。…·•]+$/g,'').trim())
-              .filter(line=>line && !/^(?:⚙[️]?\s*)?(?:key\s*features|features|মূল\s*বৈশিষ্ট্য|ফিচার)$/i.test(line));
-            if(parsed.length) app.features=parsed;
-          }
-          const shortDesc=introText.split('\n').map(x=>x.trim()).find(x=>x && !/^[-*•#]/.test(x));
-          if(shortDesc && (!app.desc || app.desc==='Your World of Live TV')) app.desc=shortDesc.slice(0,180);
-        }
-      }
-      const bytes=Number(downloadAsset?.size||0);
-      if(bytes>0) app.size=bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':Math.max(1,Math.round(bytes/1024))+' KB';
-      const published=downloadAsset?.updated_at||downloadAsset?.created_at||release.published_at||release.created_at;
-      if(published){app.date=published.slice(0,10);app.publishedAt=published;}
-      changed=true;
-    }
-    // Automatically add every public release that has a downloadable APK/ZIP/7z,
-    // even when the app was not listed in the original demo array.
-    const installableReleases=publicReleases.filter(release=>(release.assets||[]).some(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'')));
-    for(const release of installableReleases){
-      if(apps.some(app=>releaseMatchesApp(app,release))) continue;
-      const assets=release.assets||[];
-      const typeMatch=String(release.body||'').replace(/\*\*/g,'').replace(/__(.*?)__/g,'$1').match(/^\s*(?:[-*•▪◦]\s*)?Type\s*:\s*(Premium|Free)\s*$/im);
-      const declaredType=typeMatch?typeMatch[1].toLowerCase():'';
-      const premiumAsset=assets.find(asset=>/\.(zip|7z)$/i.test(asset.name||''));
-      const apkAsset=assets.find(asset=>/\.apk$/i.test(asset.name||''));
-      const releaseStatus=declaredType || (premiumAsset&&!apkAsset?'premium':'free');
-      const downloadAsset=releaseStatus==='premium'?(premiumAsset||apkAsset):(apkAsset||premiumAsset);
-      if(!downloadAsset) continue;
-      const media=imageAssetsForRelease(release);
-      const clean=String(release.body||'').replace(/\r/g,'').replace(/^\s*(?:[-*•▪◦]\s*)?(?:\*\*|__)?Type(?:\*\*|__)?\s*:\s*(?:\*\*|__)?(?:Premium|Free)(?:\*\*|__)?\s*$/gim,'').replace(/<img\b[^>]*>/gi,' ').replace(/<br\s*\/?\s*>/gi,'\n').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/&lt;/gi,'<').replace(/&gt;/gi,'>').replace(/&quot;/gi,'"').replace(/&#39;|&apos;/gi,"'").replace(/^#{1,6}\s+/gm,'').replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1').replace(/`([^`]+)`/g,'$1').trim();
-      const lines=clean.split(/\n/).map(line=>line.trim()).filter(Boolean);
-      const bulletIndex=lines.findIndex(line=>/^[-*•▪◦]\s+/.test(line));
-      const intro=(bulletIndex>=0?lines.slice(0,bulletIndex):lines).join(' ').replace(/^#+\s*/,'').replace(/[\s.。…·•-]+$/g,'').trim();
-      const features=(bulletIndex>=0?lines.slice(bulletIndex):[]).map(line=>line.replace(/^[-*•▪◦]+\s*/, '').replace(/[\s.。…·•]+$/g,'').trim()).filter(Boolean);
-      const baseName=String(release.name||release.tag_name||'New App').replace(/\s+v?\d+(?:[._-]\d+)*\s*$/i,'').trim()||String(release.tag_name||'New App');
-      const id=normalizeReleaseText(baseName)||('release-'+String(release.id||Date.now()));
-      if(apps.some(app=>app.id===id||normalizeReleaseText(app.name)===normalizeReleaseText(baseName))) continue;
-      const bytes=Number(downloadAsset.size||0), published=downloadAsset.updated_at||downloadAsset.created_at||release.published_at||release.created_at;
-      apps.push({id,name:baseName,desc:(intro.split(/[.!?।\n]/).map(x=>x.trim()).find(Boolean)||baseName).slice(0,180),version:release.tag_name||'',date:published?published.slice(0,10):'',size:bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':bytes?Math.max(1,Math.round(bytes/1024))+' KB':'',downloadCount:assets.filter(asset=>/\.(apk|zip|7z)$/i.test(asset.name||'')).reduce((sum,asset)=>sum+Number(asset.download_count||0),0),status:releaseStatus,iconText:baseName.slice(0,3).toUpperCase(),about:intro||baseName,features,download:assetUrl(downloadAsset),pin:releaseStatus==='premium'?'PIN পেতে WhatsApp-এ যোগাযোগ করুন':'',icon:media.logo||'',shots:media.shots||[],platform:'',license:'',publishedAt:published||''});
-      changed=true;
-    }
-    // Remove the four built-in sample cards when no corresponding real release exists.
-    const sampleIds=['iptvplay','silent-camera','bagerhat-vision','jb-mart'];
-    const releasedIds=new Set(installableReleases.map(release=>release.id));
-    const matchedSampleIds=new Set();
-    for(const id of sampleIds){const app=apps.find(item=>item.id===id);if(app&&installableReleases.some(release=>releaseMatchesApp(app,release)))matchedSampleIds.add(id)}
-    const beforePrune=apps.length;
-    apps=apps.filter(app=>!sampleIds.includes(app.id)||matchedSampleIds.has(app.id));
-    if(apps.length!==beforePrune) changed=true;
-    if(changed){persist();renderApps();if(currentId)openDetails(currentId,true);else{const requested=getAppIdFromHash();if(requested){const match=apps.find(a=>a.id===requested);if(match)openDetails(match.id,true)}}}
   }catch(err){
-    console.warn('Could not sync GitHub Releases; keeping saved data until the next allowed retry.',err);
-    if(!githubRateLimitNoticeShown && /rate limit/i.test(String(err&&err.message||err))){
-      githubRateLimitNoticeShown=true;
-      const toastEl=document.getElementById('toast');
-      if(toastEl) toast('GitHub API সীমা পূর্ণ। পুরোনো ডেটা রাখা হয়েছে; পরে আবার সিঙ্ক হবে।');
-    }
-    if(!githubNextAllowedAt) githubNextAllowedAt=Date.now()+15*60*1000;
+    console.warn('Google Sheets sync failed; using saved/default data.',err);
+    return false;
   }finally{
     githubSyncInFlight=false;
+    githubLastSyncAt=Date.now();
+    githubNextAllowedAt=Date.now()+15*60*1000;
   }
+}
+async function syncGitHubDownloadCounts(){
+  // Keep app metadata in Google Sheets, but always read official asset download_count values from GitHub Releases.
+  try{
+    const response=await fetch(GITHUB_RELEASES_API,{cache:'no-store',headers:{'Accept':'application/vnd.github+json'}});
+    if(!response.ok) throw new Error('GitHub Releases API unavailable: '+response.status);
+    const releases=await response.json();
+    if(!Array.isArray(releases)) return;
+    const publicReleases=releases.filter(r=>!r.draft&&!r.prerelease);
+    const norm=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');
+    let changed=false;
+    for(const app of apps){
+      const terms=[norm(app.id),norm(app.name)].filter(x=>x.length>=3);
+      const matches=publicReleases.filter(r=>{
+        const hay=norm([r.name,r.tag_name,...(r.assets||[]).map(a=>a.name)].join(' '));
+        return terms.some(t=>hay.includes(t));
+      });
+      if(!matches.length) continue;
+      matches.sort((a,b)=>new Date(b.published_at||b.created_at||0)-new Date(a.published_at||a.created_at||0));
+      const assets=(matches[0].assets||[]).filter(a=>/\.(apk|zip|7z)$/i.test(a.name||''));
+      const count=assets.reduce((sum,a)=>sum+Number(a.download_count||0),0);
+      if(Number(app.downloadCount||0)!==count){app.downloadCount=count;changed=true;}
+    }
+    if(changed){persist();renderApps();if(currentId&&apps.some(a=>a.id===currentId))openDetails(currentId,true);}
+  }catch(err){console.warn('Could not refresh GitHub Releases download counts; keeping previous values.',err);}
+}
+// Sheet-only mode: app details and all media/download URLs come from Google Sheets.
+// No GitHub Releases API requests are made by this website.
+async function syncGitHubReleases(){
+  await syncGoogleSheetData();
 }
 
 let apps=loadApps(),filter='all',currentId=null;
@@ -439,8 +341,8 @@ renderApps();renderAbout();
 if(initialAppId){const existing=apps.find(a=>a.id===initialAppId);if(existing){currentId=existing.id;openDetails(existing.id,true)}else{currentId=initialAppId;showPage('details',true);document.getElementById('detailContent').innerHTML='<div class="empty">অ্যাপের তথ্য লোড হচ্ছে…</div>'}}
 else if(['home','about','free','premium','admin'].includes(location.hash.slice(1))){showPage(location.hash.slice(1),true)}
 syncGitHubReleases();
-// Keep refreshes infrequent to respect GitHub's unauthenticated API limit.
-setInterval(()=>{if(!document.hidden)syncGitHubReleases()},15*60*1000);
+// Refresh app data from Google Sheets only; no GitHub API is used.
+setInterval(()=>{if(!document.hidden)syncGitHubReleases()},5*60*1000);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden)syncGitHubReleases()});
 </script>
 </body>
