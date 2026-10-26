@@ -18,6 +18,8 @@
 /* Compact About modal */
 #about.active{position:fixed;inset:0;z-index:100;display:flex;align-items:center;justify-content:center;padding:16px;background:rgba(0,0,0,.72);backdrop-filter:blur(4px);overflow:auto}
 #about .about-modal{position:relative;width:min(420px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow:auto;background:#071827;border:1px solid #24516d;border-radius:16px;box-shadow:0 20px 70px #000b;padding:16px}
+#about .about-close{position:absolute;top:10px;right:10px;z-index:2;width:30px;height:30px;border:1px solid #31566c;border-radius:50%;background:#102a3d;color:#fff;font-size:20px;line-height:1}
+#about .about-modal{position:relative;width:min(420px,calc(100vw - 28px));max-height:calc(100dvh - 32px);overflow:auto;background:#071827;border:1px solid #24516d;border-radius:16px;box-shadow:0 20px 70px #000b;padding:16px}
 #about .about-close{position:sticky;top:0;float:right;z-index:2;width:30px;height:30px;border:1px solid #31566c;border-radius:50%;background:#102a3d;color:#fff;font-size:20px;line-height:1}
 #about .abouthero{padding:16px 12px;border-radius:12px}
 #about .biglogo{width:64px;height:64px;border-radius:16px;margin-bottom:8px}
@@ -31,7 +33,7 @@
 #about .contact{padding:9px}
 #about .actions{gap:7px;margin:10px 0 0}
 #about .actions>*{padding:9px 10px;font-size:12px}
-@media(max-width:650px){#about .about-modal{width:min(380px,calc(100vw - 24px));padding:12px}}
+@media(max-width:650px){#about.active{padding:12px}#about .about-modal{width:min(420px,calc(100vw - 24px));max-height:calc(100dvh - 24px);padding:12px}#about .contactgrid{grid-template-columns:repeat(2,minmax(0,1fr))}#about .contact{min-width:0;padding:9px}#about .contact strong{overflow-wrap:anywhere;font-size:12px}#about .actions{display:flex;flex-wrap:nowrap}#about .actions>*{flex:1 1 0;min-width:0;padding:9px 6px;font-size:11px}}
 </style>
 </head>
 <body>
@@ -66,6 +68,8 @@
   <div id="detailContent"></div>
 </section>
 <section id="about" class="page">
+  <div class="about-modal" role="dialog" aria-modal="true" aria-label="SC Android Studio পরিচিতি">
+  <button class="about-close" type="button" aria-label="বন্ধ করুন" onclick="closeAbout()">×</button>
   <div class="abouthero">
     <div class="biglogo" id="aboutLogo"><img src="https://i.imgur.com/4ZfSPii.png" alt="SC Android Studio logo"></div><h1>SC Android Studio</h1>
     <div class="tagline">Imagine. Build. Inspire.</div>
@@ -80,6 +84,7 @@
     <div class="contact"><small>Facebook</small><strong><a href="https://www.facebook.com/shagorch24" target="_blank" rel="noopener">fb.com/shagorch24 ↗</a></strong></div>
   </div><div class="actions"><a class="primary" href="mailto:shagorchakladar@gmail.com">✉ Email</a><a class="whatsapp" href="https://wa.me/8801303072964" target="_blank" rel="noopener">◉ WhatsApp</a><a class="secondary" href="https://www.facebook.com/shagorch24" target="_blank" rel="noopener">f Facebook</a></div></div>
   <div class="section" id="aboutShotsSection" style="display:none"><h2>About Screenshots</h2><div id="aboutShots" class="screenshots" style="margin-top:14px"></div></div>
+  </div>
 </section>
 <section id="admin" class="page">
   <div class="heading"><div><div class="eyebrow">Content management</div><h1>Admin Panel</h1><div class="muted" style="font-size:13px;margin-top:6px">অ্যাপের তথ্য ও ছবি সাজানোর ডেমো</div></div><button class="secondary" onclick="showPage('home')">সাইট দেখুন ↗</button></div>
@@ -322,6 +327,8 @@ function renderList(listKey,items,listId,paginationId){const pageCount=Math.max(
 function goListPage(key,page){listPages[key]=page;renderApps();const target=key==='all'?'home':key;showPage(target);}
 function formatDate(value){if(!value)return '—';const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})/);return m?`${m[3]}-${m[2]}-${m[1]}`:value}
 function closeAbout(){showPage('home')}
+document.addEventListener('click',function(e){const about=document.getElementById('about');if(about&&about.classList.contains('active')&&e.target===about)closeAbout()});
+document.addEventListener('keydown',function(e){if(e.key==='Escape'&&document.getElementById('about')?.classList.contains('active'))closeAbout()});
 function renderApps(){const q=(document.getElementById('search')?.value||'').toLowerCase().trim();const matches=sortedNewest(apps.filter(a=>`${a.name} ${a.desc}`.toLowerCase().includes(q)));const free=matches.filter(a=>a.status==='free'),premium=matches.filter(a=>a.status==='premium');renderList('all',matches,'appList','appPagination');renderList('free',free,'freeAppList','freePagination');renderList('premium',premium,'premiumAppList','premiumPagination')}
 let previousPage='home';
 function getAppIdFromHash(){const h=location.hash||'';if(h.startsWith('#app/'))return decodeURIComponent(h.slice(5));if(h.startsWith('#app='))return decodeURIComponent(h.slice(5));return ''}
