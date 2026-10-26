@@ -179,7 +179,7 @@ let githubNextAllowedAt=0;
 let githubRateLimitNoticeShown=false;
 async function syncGoogleSheetData(){
   if(!USE_GOOGLE_DATA_API) return false;
-  if(githubSyncInFlight) return false;
+  if(githubSyncInFlight) return true;
   githubSyncInFlight=true;
   try{
     const url=GOOGLE_DATA_API+(GOOGLE_DATA_API.includes('?')?'&':'?')+'t='+Date.now();
@@ -189,64 +189,35 @@ async function syncGoogleSheetData(){
     const incoming=Array.isArray(payload)?payload:(Array.isArray(payload.apps)?payload.apps:null);
     if(!incoming) throw new Error('Google endpoint did not return an apps array');
     const cleaned=incoming.filter(a=>a&&a.id&&a.name).map(a=>{
-      const rawDescription=String(a.description||a.desc||'').replace(/\r/g,'').trim();
-      const plain=rawDescription
-        .replace(/<br\s*\/?>/gi,'\n').replace(/<\/(p|div|h[1-6]|li)>/gi,'\n')
-        .replace(/<[^>]*>/g,' ').replace(/^#{1,6}\s*/gm,'')
-        .replace(/\*\*(.*?)\*\*/g,'$1').replace(/__(.*?)__/g,'$1')
-        .replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&')
-        .replace(/[ \t]+\n/g,'\n').replace(/\n{3,}/g,'\n\n').trim();
-      const lines=plain.split(/\n+/).map(x=>x.trim()).filter(Boolean);
-      const featureHeading=lines.findIndex(x=>/^(?:key\s*)?features?|মূল বৈশিষ্ট্য|ফিচার\s*:?$/i.test(x.replace(/[:：]$/,'')));
-      let intro=plain;
-      let features=Array.isArray(a.features)?a.features:[];
-      if(!features.length){
-        const bulletLines=lines.filter(x=>/^[-*•▪◦]\s+/.test(x)).map(x=>x.replace(/^[-*•▪◦]\s+/,'').trim()).filter(Boolean);
-        if(bulletLines.length) features=bulletLines;
-      }
-      if(featureHeading>=0) intro=lines.slice(0,featureHeading).join(' ').trim();
-      else if(lines.some(x=>/^[-*•▪◦]\s+/.test(x))) intro=lines.slice(0,lines.findIndex(x=>/^[-*•▪◦]\s+/.test(x))).join(' ').trim();
-      const urlAbout=String(a.about||'').trim();
-      const rawFeatures=Array.isArray(a.features)?a.features:String(a.features||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
-      const bytes=Number(a.size||0);
-      const size=typeof a.size==='string' && /[a-z]/i.test(a.size) ? a.size : (bytes>=1048576?(bytes/1048576).toFixed(1)+' MB':bytes>0?Math.max(1,Math.round(bytes/1024))+' KB':'');
-      return {
-        ...a,
-        id:String(a.id).trim(),
-        name:String(a.name).trim(),
-        desc:String(a.desc||intro.split('\n')[0]||a.name).replace(/^[-*#\s]+/,'').trim().slice(0,180),
-        about:(!urlAbout||/^https?:\/\//i.test(urlAbout))?(intro||String(a.name)):urlAbout,
-        features:rawFeatures.length?rawFeatures:features,
-        shots:Array.isArray(a.shots)?a.shots:String(a.shots||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean),
-        status:String(a.status||'free').toLowerCase()==='premium'?'premium':'free',
-        version:String(a.version||''),
-        date:String(a.date||''),
-        size,
-        download:String(a.download||a.downloadUrl||''),
-        icon:String(a.icon||a.iconUrl||''),
-        iconText:String(a.iconText||a.name.slice(0,3).toUpperCase()),
-        pin:String(a.pin||''),
-        downloadCount:Number(a.downloadCount||a.download_count||0)
+      const rawDescription=String(a.description||a.desc||'').replace(/<[^>]*>/g,' ').trim();
+      const sizeBytes=Number(a.size||0);
+      const sizeLabel=typeof a.size==='string' && /\b(KB|MB|GB)\b/i.test(a.size) ? a.size :
+        (sizeBytes>=1048576?(sizeBytes/1048576).toFixed(1)+' MB':sizeBytes>0?Math.max(1,Math.round(sizeBytes/1024))+' KB':'');
+      const features=Array.isArray(a.features)?a.features:String(a.features||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
+      const shots=Array.isArray(a.shots)?a.shots:String(a.shots||'').split(/\n|\|/).map(x=>x.trim()).filter(Boolean);
+      const aboutRaw=String(a.about||'');
+      return {...a,
+        desc:String(a.desc||rawDescription.split(/\n/).map(x=>x.trim()).find(Boolean)||a.name).slice(0,180),
+        about:(!aboutRaw||/^https?:\/\//i.test(aboutRaw))?rawDescription:aboutRaw,
+        size:sizeLabel,
+        download:a.download||a.downloadUrl||'',
+        icon:a.icon||a.iconUrl||'',
+        status:String(a.status||'free').toLowerCase().includes('premium')?'premium':'free',
+        features,shots,downloadCount:Number(a.downloadCount||a.download_count||0)
       };
     });
     if(!cleaned.length) throw new Error('Google Sheet contains no valid app rows');
     apps=cleaned;
-    persist();
-    renderApps();
-    if(currentId&&apps.some(a=>a.id===currentId)) openDetails(currentId,true);
+    persist();renderApps();
+    if(currentId&&apps.some(a=>a.id===currentId))openDetails(currentId,true);
+    const notice=document.getElementById('toast');
     if(payload.updatedAt) console.info('Google Sheet data updated:',payload.updatedAt);
     return true;
-  }catch(err){
-    console.warn('Google Sheets sync failed; using saved/default data.',err);
-    return false;
-  }finally{
-    githubSyncInFlight=false;
-    githubLastSyncAt=Date.now();
-    githubNextAllowedAt=Date.now()+15*60*1000;
-  }
+  }catch(err){console.warn('Google Sheets sync failed; using saved/default data.',err);return true}
+  finally{githubSyncInFlight=false;githubLastSyncAt=Date.now();githubNextAllowedAt=Date.now()+15*60*1000}
 }
 async function syncGitHubReleases(force=false){
-  if(USE_GOOGLE_DATA_API){await syncGoogleSheetData();return;}
+  if(USE_GOOGLE_DATA_API){await syncGoogleSheetData();}
   const now=Date.now();
   if(githubSyncInFlight) return;
   if(!force && now<githubNextAllowedAt) return;
