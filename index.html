@@ -288,7 +288,37 @@ ${url}
 SC Android Studio
 Imagine. Build. Inspire.`;if(navigator.share){try{await navigator.share({title:`${a.name} — SC Android Studio`,text:message});return}catch(err){if(err&&err.name==='AbortError')return}}let copied=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(message);copied=true}}catch(e){}if(!copied){const ta=document.createElement('textarea');ta.value=message;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{copied=document.execCommand('copy')}catch(e){}ta.remove()}toast(copied?'শেয়ারের মেসেজ ও অ্যাপের লিংক কপি হয়েছে।':'এই ব্রাউজারে শেয়ার বা কপি করা যাচ্ছে না।')}
 function openDetails(id,fromPop=false){const a=apps.find(x=>x.id===id);if(!a)return;currentId=id;const buttonLabel='⇩ Download';const download=`<button class="primary" onclick="downloadApp('${safe(a.id)}')">${buttonLabel}</button>`;const pin=a.status==='premium'?`<a class="whatsapp" href="https://wa.me/8801303072964?text=${encodeURIComponent('আসসালামু আলাইকুম, '+a.name+' অ্যাপের Premium PIN চাই।') }" target="_blank" rel="noopener">◉ Get PIN on WhatsApp</a>`:'';const features=(a.features||[]).filter(Boolean);const shots=(a.shots||[]).filter(Boolean);const screenshots=shots.length?`<div class="section"><h2>▧ App Screenshots (${shots.length})</h2><div class="screenshots">${shots.map((s,i)=>`<div class="shot"><img src="${safe(s)}" alt="${safe(a.name)} screenshot ${i+1}" loading="lazy" onerror="this.parentElement.style.display='none'"></div>`).join('')}</div></div>`:'';document.getElementById('detailContent').innerHTML=`<div class="detailtop"><div class="appicon">${appIcon(a)}</div><div style="min-width:0;flex:1"><div class="detailtitle">${safe(a.name)}</div><div class="muted">${safe(a.desc||'')}</div><div class="meta"><span>${safe(a.version||'')}</span><span>${safe(formatDate(a.date||''))}</span><span>${safe(a.size||'')}</span><span>⬇ ${Number(a.downloadCount||0).toLocaleString()} downloads</span></div></div><span class="badge ${a.status==='premium'?'premium':'free'}">${a.status==='premium'?'PREMIUM':'FREE'}</span></div><div class="actions">${download}<button class="secondary" onclick="copyDownload('${safe(a.id)}')">⧉ Copy Download Link</button>${pin}</div><div class="facts"><div class="fact"><small>App Version</small><strong>${safe(a.version||'—')}</strong></div><div class="fact"><small>Updated</small><strong>${safe(formatDate(a.date||''))}</strong></div><div class="fact"><small>File Size</small><strong>${safe(a.size||'—')}</strong></div><div class="fact"><small>Downloads</small><strong>${Number(a.downloadCount||0).toLocaleString()}</strong></div><div class="fact"><small>License</small><strong>${a.status==='premium'?'Premium':'Free'}</strong></div></div>${screenshots}<div class="section"><h2>About This App</h2><p style="white-space:pre-line">${safe(a.about||a.desc||'')}</p>${features.length?`<h2 style="margin-top:20px">⚙ Key Features</h2><ul style="padding-left:20px;color:#bad0e0;line-height:1.9">${features.map(f=>`<li>${safe(f)}</li>`).join('')}</ul>`:''}${a.platform?`<h2 style="margin-top:20px">Platform</h2><p style="white-space:pre-line">${safe(a.platform)}</p>`:''}${a.license?`<h2 style="margin-top:20px">License</h2><p style="white-space:pre-line">${safe(a.license)}</p>`:''}</div>${a.status==='premium'?'<div class="notice">Premium অ্যাপ ব্যবহারের জন্য ZIP/7z ফাইলের PIN প্রয়োজন হতে পারে। PIN পেতে WhatsApp-এ যোগাযোগ করুন।</div>':''}`;showPage('details',fromPop)}
-function downloadApp(id){const a=apps.find(x=>x.id===id);if(!a)return;if(!a.download){toast('এই অ্যাপের ডাউনলোড লিংক শিগগিরই যুক্ত করা হবে।');return}const link=document.createElement('a');link.href=a.download;link.target='_blank';link.rel='noopener noreferrer';document.body.appendChild(link);link.click();link.remove();toast('ডাউনলোড লিংক খোলা হচ্ছে…');}
+function downloadApp(id){
+  const a=apps.find(x=>x.id===id);
+  if(!a)return;
+  if(!a.download){toast('এই অ্যাপের ডাউনলোড লিংক শিগগিরই যুক্ত করা হবে।');return}
+
+  // Count a click on the download button in Google Sheets.
+  // text/plain is a simple cross-origin request; no-cors means the response cannot be read here.
+  if(USE_GOOGLE_DATA_API){
+    try{
+      fetch(GOOGLE_DATA_API,{
+        method:'POST',
+        mode:'no-cors',
+        headers:{'Content-Type':'text/plain;charset=UTF-8'},
+        body:JSON.stringify({action:'countDownload',id:a.id,name:a.name})
+      }).catch(err=>console.warn('Download count request failed:',err));
+      a.downloadCount=Number(a.downloadCount||0)+1;
+      persist();
+      renderApps();
+      if(currentId===a.id) openDetails(a.id,true);
+    }catch(err){console.warn('Download count request could not start:',err);}
+  }
+
+  const link=document.createElement('a');
+  link.href=a.download;
+  link.target='_blank';
+  link.rel='noopener noreferrer';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  toast('ডাউনলোড লিংক খোলা হচ্ছে…');
+}
 async function copyDownload(id){const a=apps.find(x=>x.id===id);if(!a)return;if(!a.download){toast('এই অ্যাপের ডাউনলোড লিংক এখনো প্রস্তুত নয়।');return}let copied=false;try{if(navigator.clipboard&&navigator.clipboard.writeText){await navigator.clipboard.writeText(a.download);copied=true}}catch(e){}if(!copied){const ta=document.createElement('textarea');ta.value=a.download;ta.setAttribute('readonly','');ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();try{copied=document.execCommand('copy')}catch(e){}ta.remove()}toast(copied?'Download link কপি হয়েছে।':'এই ব্রাউজারে কপি করা যাচ্ছে না।')}
 function adminTab(id,btn){document.querySelectorAll('.adminsection').forEach(x=>x.classList.toggle('active',x.id==='admin-'+id));document.querySelectorAll('.adminnav button').forEach(x=>x.classList.toggle('active',x===btn));if(id==='apps')renderAdminList();if(id==='media'){refreshMediaSelect();loadMedia()}}
 function renderAdminList(){const el=document.getElementById('adminList');if(!el)return;el.innerHTML=apps.map(a=>`<div class="adminrow"><div class="appicon">${appIcon(a)}</div><div class="appinfo"><strong>${safe(a.name)}</strong><div class="muted">${safe(a.version||'')} · ${a.status==='premium'?'Premium':'Free'}</div></div><button class="smallbtn" onclick="editApp('${safe(a.id)}')">Edit</button><button class="smallbtn danger" onclick="deleteApp('${safe(a.id)}')">Delete</button></div>`).join('')||'<div class="empty">কোনো অ্যাপ নেই।</div>'}
